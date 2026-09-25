@@ -1,5 +1,5 @@
 name: arrangement_layout
-description: "Merges Flutter display features with iPhone Duo hinge posture and angle."
+description: "Two-pane ArrangementLayout for foldables, with Flutter display features and iPhone Duo hinge readings."
 version: 0.0.1
 homepage:
 

@@ -1,6 +1,10 @@
 export 'src/arrangement_controller.dart';
+export 'src/arrangement_layout.dart';
+export 'src/arrangement_pane.dart';
 export 'src/arrangement_scope.dart';
 export 'src/arrangement_state.dart';
+export 'src/arrangement_style.dart';
 export 'src/hinge_state.dart';
 export 'src/ios_fold_reading.dart';
 export 'src/merge_arrangement.dart';
+export 'src/resolve_arrangement.dart';

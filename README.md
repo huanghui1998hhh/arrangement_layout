@@ -1,6 +1,6 @@
 # arrangement_layout
 
-把 Flutter 引擎已经提供的 `DisplayFeature` 和 iPhone Duo 的铰链读数放在一起。
+把 Flutter 引擎已经提供的 `DisplayFeature` 和 iPhone Duo 的铰链读数放在一起，并提供对齐 SwiftUI `ArrangementView` 的两栏容器 `ArrangementLayout`。
 
 Android 上的折痕、铰链和挖孔直接来自 `FlutterView.displayFeatures`，不经过 `BuildContext`，也不再读一遍 WindowManager。iOS 上引擎这份列表是空的，插件把 iPhone Duo 的折痕和内屏摄像头按同一套 `DisplayFeature` 规则补进去，并额外提供铰链角度和姿态。
 
@@ -38,6 +38,22 @@ controller.addListener(() {
 ```
 
 多窗口时把对应的 `FlutterView` 传给 `ArrangementController(view: ...)`。
+
+## 两栏布局
+
+`ArrangementLayout` 放在导航里面、滚动内容外面。它声明两块内容的关系，由容器尺寸和相交的折痕或铰链决定可见性和 frame。铰链角度不参与布局。
+
+```dart
+ArrangementLayout(
+  style: const ArrangementStyle.split(axes: {Axis.horizontal}, ratio: 0.4),
+  primary: const InboxList(),
+  secondary: const MessageDetail(),
+)
+```
+
+没有 `ArrangementScope` 时，它退回读取 `MediaQuery` 里的 `displayFeatures`，所以 Android 上可以直接用引擎上报的铰链。摊平的物理铰链（`hinge`）仍然切开布局；摊平的柔性折痕（`fold` + `postureFlat`）则按普通大窗口处理。
+
+子树用 `ArrangementPane.of(context)` 读取已经解析好的呈现，不必再从环境和样式推一遍。形态和 Android 适配的决策表见 `docs/arrangement_view.md`。
 
 ## 状态
 

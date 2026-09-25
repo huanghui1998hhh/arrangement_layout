@@ -261,15 +261,18 @@ void main() {
     },
   );
 
-  test('an iOS reading with a null hinge does not fall back to engine posture', () {
-    final state = mergeArrangement(
-      engineFeatures: const [cutout],
-      iosReading: const IosFoldReading(hinge: null, regions: []),
-    );
+  test(
+    'an iOS reading with a null hinge does not fall back to engine posture',
+    () {
+      final state = mergeArrangement(
+        engineFeatures: const [cutout],
+        iosReading: const IosFoldReading(hinge: null, regions: []),
+      );
 
-    expect(state.displayFeatures, const [cutout]);
-    expect(state.hinge, isNull);
-  });
+      expect(state.displayFeatures, const [cutout]);
+      expect(state.hinge, isNull);
+    },
+  );
 
   test('engine cutouts are kept when iOS adds a separating fold', () {
     final state = mergeArrangement(
