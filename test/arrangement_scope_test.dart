@@ -63,4 +63,57 @@ void main() {
       expect(tester.view.displayFeatures, isEmpty);
     },
   );
+
+  testWidgets('side safe area is raised and the top inset stays put', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(466, 678);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(top: 20, bottom: 30, right: 10);
+    tester.view.viewPadding = const FakeViewPadding(
+      top: 20,
+      bottom: 30,
+      right: 10,
+    );
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+
+    final events = StreamController<IosFoldReading>(sync: true);
+    addTearDown(events.close);
+    final controller = ArrangementController(foldEvents: events.stream);
+    addTearDown(controller.dispose);
+    events.add(
+      const IosFoldReading(
+        hinge: null,
+        regions: [],
+        safeAreaInsets: EdgeInsets.only(top: 100, right: 84, bottom: 50),
+        verticalBarEdge: IosVerticalBarEdge.right,
+      ),
+    );
+
+    late EdgeInsets padding;
+    late EdgeInsets viewPadding;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) {
+          return ArrangementScope(
+            controller: controller,
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
+        home: Builder(
+          builder: (context) {
+            padding = MediaQuery.paddingOf(context);
+            viewPadding = MediaQuery.viewPaddingOf(context);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(padding, const EdgeInsets.only(top: 20, right: 84, bottom: 30));
+    expect(viewPadding, const EdgeInsets.only(top: 20, right: 84, bottom: 30));
+  });
 }

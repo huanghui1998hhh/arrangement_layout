@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 import 'arrangement_controller.dart';
@@ -31,7 +33,11 @@ class ArrangementScope extends StatefulWidget {
   /// 外部持有的控制器。为 null 时由本组件创建。
   final ArrangementController? controller;
 
-  /// 是否用 [ArrangementState.displayFeatures] 替换当前 [MediaQuery] 的特征。
+  /// 是否用 [ArrangementState.displayFeatures] 替换当前 [MediaQuery] 的特征，
+  /// 并把左右安全区抬到不低于 [ArrangementState.safeAreaInsets]。
+  ///
+  /// 不改顶部和底部。iPhone Duo 的灵动岛长在侧栏里，抬高 top 会让竖排按钮跟着顶部
+  /// 安全区走；底部留给应用自己的安全区策略。
   final bool injectDisplayFeatures;
 
   /// 作用域下的子树。
@@ -102,10 +108,22 @@ class _ArrangementScopeState extends State<ArrangementScope> {
         final state = _controller.value;
         var result = child!;
         if (widget.injectDisplayFeatures) {
+          final media = MediaQuery.of(context);
+          final safe = state.safeAreaInsets;
+          // 只抬左右。父级可能已经改过底部安全区，这里原样保留 top 和 bottom。
+          EdgeInsets widen(EdgeInsets insets) {
+            return insets.copyWith(
+              left: math.max(insets.left, safe.left),
+              right: math.max(insets.right, safe.right),
+            );
+          }
+
           result = MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(displayFeatures: state.displayFeatures),
+            data: media.copyWith(
+              displayFeatures: state.displayFeatures,
+              padding: widen(media.padding),
+              viewPadding: widen(media.viewPadding),
+            ),
             child: result,
           );
         }

@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:flutter/painting.dart';
+
 import 'arrangement_state.dart';
 import 'hinge_state.dart';
 import 'ios_fold_reading.dart';
@@ -14,6 +16,9 @@ import 'ios_fold_reading.dart';
 /// 时进入 [ArrangementState.displayFeatures]。摊平后仍有宽度的折痕留在
 /// [ArrangementState.inactiveDisplayFeatures]：它的 `shortestSide` 大于 0，
 /// 写进 `MediaQuery` 会让对话框被切到半屏。合上时视图在外屏，不报折痕。
+///
+/// 安全区、竖排栏所在边和状态栏跟几何分开带上。引擎接管折痕之后，竖排按钮仍然要靠
+/// 这三项对齐侧栏里的灵动岛。
 ArrangementState mergeArrangement({
   required List<DisplayFeature> engineFeatures,
   IosFoldReading? iosReading,
@@ -27,10 +32,11 @@ ArrangementState mergeArrangement({
       ? iosReading.hinge
       : _hingeFromEngine(engineFeatures);
   if (engineOwnsGeometry || iosReading == null) {
-    return ArrangementState(
+    return _state(
       displayFeatures: List.unmodifiable(engineFeatures),
       inactiveDisplayFeatures: const <DisplayFeature>[],
       hinge: hinge,
+      iosReading: iosReading,
     );
   }
 
@@ -73,10 +79,27 @@ ArrangementState mergeArrangement({
         }
     }
   }
-  return ArrangementState(
+  return _state(
     displayFeatures: List.unmodifiable(active),
     inactiveDisplayFeatures: List.unmodifiable(inactive),
     hinge: hinge,
+    iosReading: iosReading,
+  );
+}
+
+ArrangementState _state({
+  required List<DisplayFeature> displayFeatures,
+  required List<DisplayFeature> inactiveDisplayFeatures,
+  required HingeState? hinge,
+  required IosFoldReading? iosReading,
+}) {
+  return ArrangementState(
+    displayFeatures: displayFeatures,
+    inactiveDisplayFeatures: inactiveDisplayFeatures,
+    hinge: hinge,
+    safeAreaInsets: iosReading?.safeAreaInsets ?? EdgeInsets.zero,
+    verticalBarEdge: iosReading?.verticalBarEdge ?? IosVerticalBarEdge.none,
+    statusBarBounds: iosReading?.statusBarBounds,
   );
 }
 

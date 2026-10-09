@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:arrangement_layout/arrangement_layout.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -329,5 +330,48 @@ void main() {
 
     expect(reading.hinge, isNull);
     expect(reading.regions, isEmpty);
+    expect(reading.safeAreaInsets, EdgeInsets.zero);
+    expect(reading.verticalBarEdge, IosVerticalBarEdge.none);
+    expect(reading.statusBarBounds, isNull);
+  });
+
+  test('plugin event keeps the side safe area and vertical status bar', () {
+    final reading = IosFoldReading.fromMap({
+      'hinge': null,
+      'regions': <Object?>[],
+      'safeArea': {'l': 0, 't': 0, 'r': 84, 'b': 34},
+      'verticalBarEdge': 'right',
+      'statusBar': {'l': 382, 't': 0, 'r': 466, 'b': 170},
+    });
+
+    expect(
+      reading.safeAreaInsets,
+      const EdgeInsets.only(right: 84, bottom: 34),
+    );
+    expect(reading.verticalBarEdge, IosVerticalBarEdge.right);
+    expect(reading.statusBarBounds, const Rect.fromLTRB(382, 0, 466, 170));
+  });
+
+  test('engine-owned folds still carry the iOS side chrome', () {
+    const fold = DisplayFeature(
+      bounds: Rect.fromLTWH(388, 0, 24, 800),
+      type: DisplayFeatureType.fold,
+      state: DisplayFeatureState.postureHalfOpened,
+    );
+    final state = mergeArrangement(
+      engineFeatures: const [fold],
+      iosReading: const IosFoldReading(
+        hinge: HingeState(posture: HingePosture.partiallyOpen, angle: 1),
+        regions: [],
+        safeAreaInsets: EdgeInsets.only(right: 84),
+        verticalBarEdge: IosVerticalBarEdge.right,
+        statusBarBounds: Rect.fromLTWH(382, 0, 84, 180),
+      ),
+    );
+
+    expect(state.displayFeatures, const [fold]);
+    expect(state.safeAreaInsets, const EdgeInsets.only(right: 84));
+    expect(state.verticalBarEdge, IosVerticalBarEdge.right);
+    expect(state.statusBarBounds, const Rect.fromLTWH(382, 0, 84, 180));
   });
 }

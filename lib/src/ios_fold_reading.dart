@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:flutter/painting.dart';
+
 import 'hinge_state.dart';
 
 /// iOS reserved region 的种类。
@@ -65,18 +67,48 @@ class IosReservedRegion {
   int get hashCode => Object.hash(kind, bounds, isActive);
 }
 
-/// iOS 插件一次上报的铰链和区域。
+/// 系统竖排栏贴着哪条物理边。
 ///
-/// 铰链与区域放在同一次事件里，避免姿态和矩形各走各的、中间帧对不上。
+/// 插件把 `UITraitCollection.verticalBarEdge` 的 leading / trailing 按当前布局方向
+/// 换成左右。`none` 表示这个方向没有竖排栏。
+enum IosVerticalBarEdge {
+  /// 没有竖排栏。
+  none,
+
+  /// 贴物理左缘。
+  left,
+
+  /// 贴物理右缘。
+  right,
+}
+
+/// iOS 插件一次上报的铰链、区域和侧栏安全区。
+///
+/// 铰链、区域、安全区和状态栏放在同一次事件里，避免灵动岛变高时按钮和状态信息各走各的。
 class IosFoldReading {
   /// 创建一份读数。[hinge] 为 null 表示交互离开了能提供铰链的视图层级。
-  const IosFoldReading({required this.hinge, required this.regions});
+  const IosFoldReading({
+    required this.hinge,
+    required this.regions,
+    this.safeAreaInsets = EdgeInsets.zero,
+    this.verticalBarEdge = IosVerticalBarEdge.none,
+    this.statusBarBounds,
+  });
 
   /// 当前铰链。设备没有铰链，或交互尚未挂上时为 null。
   final HingeState? hinge;
 
   /// 本次读到的区域，包含未生效的折痕和摄像头。
   final List<IosReservedRegion> regions;
+
+  /// 宿主视图的 `safeAreaInsets`。Duo 上侧向 inset 就是竖排栏占住的安全区。
+  final EdgeInsets safeAreaInsets;
+
+  /// 系统放置竖排栏的物理边。
+  final IosVerticalBarEdge verticalBarEdge;
+
+  /// 状态栏矩形，坐标是 Flutter 视图的逻辑像素。隐藏时为 null。
+  final Rect? statusBarBounds;
 
   /// 解析插件事件。
   factory IosFoldReading.fromMap(Map<Object?, Object?> map) {
@@ -100,6 +132,9 @@ class IosFoldReading {
           ? _hingeFromMap(Map<Object?, Object?>.from(hingeValue))
           : null,
       regions: List.unmodifiable(regions),
+      safeAreaInsets: _edgeInsets(map['safeArea']),
+      verticalBarEdge: _verticalBarEdge(map['verticalBarEdge']),
+      statusBarBounds: _rect(map['statusBar']),
     );
   }
 
@@ -107,6 +142,9 @@ class IosFoldReading {
   bool operator ==(Object other) {
     if (other is! IosFoldReading ||
         other.hinge != hinge ||
+        other.safeAreaInsets != safeAreaInsets ||
+        other.verticalBarEdge != verticalBarEdge ||
+        other.statusBarBounds != statusBarBounds ||
         other.regions.length != regions.length) {
       return false;
     }
@@ -119,7 +157,13 @@ class IosFoldReading {
   }
 
   @override
-  int get hashCode => Object.hash(hinge, Object.hashAll(regions));
+  int get hashCode => Object.hash(
+    hinge,
+    safeAreaInsets,
+    verticalBarEdge,
+    statusBarBounds,
+    Object.hashAll(regions),
+  );
 }
 
 HingeState _hingeFromMap(Map<Object?, Object?> map) {
@@ -138,4 +182,45 @@ double? _asDouble(Object? value) {
     final int number => number.toDouble(),
     _ => null,
   };
+}
+
+EdgeInsets _edgeInsets(Object? value) {
+  if (value is! Map) {
+    return EdgeInsets.zero;
+  }
+  final map = Map<Object?, Object?>.from(value);
+  return EdgeInsets.fromLTRB(
+    _asDouble(map['l']) ?? 0,
+    _asDouble(map['t']) ?? 0,
+    _asDouble(map['r']) ?? 0,
+    _asDouble(map['b']) ?? 0,
+  );
+}
+
+IosVerticalBarEdge _verticalBarEdge(Object? value) {
+  return switch (value) {
+    'left' => IosVerticalBarEdge.left,
+    'right' => IosVerticalBarEdge.right,
+    _ => IosVerticalBarEdge.none,
+  };
+}
+
+/// 状态栏缺失、为空，或坐标读不全时返回 null。
+Rect? _rect(Object? value) {
+  if (value is! Map) {
+    return null;
+  }
+  final map = Map<Object?, Object?>.from(value);
+  final left = _asDouble(map['l']);
+  final top = _asDouble(map['t']);
+  final right = _asDouble(map['r']);
+  final bottom = _asDouble(map['b']);
+  if (left == null || top == null || right == null || bottom == null) {
+    return null;
+  }
+  final rect = Rect.fromLTRB(left, top, right, bottom);
+  if (rect.isEmpty) {
+    return null;
+  }
+  return rect;
 }

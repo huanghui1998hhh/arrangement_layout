@@ -2,9 +2,10 @@ import Flutter
 import QuartzCore
 import UIKit
 
-/// 把 iPhone Duo 的铰链和 reserved region 发到 `arrangement_layout/fold`。
+/// 把 iPhone Duo 的铰链、reserved region、安全区和状态栏发到 `arrangement_layout/fold`。
 ///
-/// 编译需要 Xcode 27.1。运行在更早的系统上时，事件里的铰链为 null、区域为空。
+/// 编译需要 Xcode 27.1。运行在更早的系统上时，事件里的铰链为 null、区域为空，
+/// 竖排栏边为 none；安全区和状态栏仍然上报。
 @objc(ArrangementLayoutPlugin)
 public final class ArrangementLayoutPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private let registrar: FlutterPluginRegistrar
@@ -92,6 +93,7 @@ public final class ArrangementLayoutPlugin: NSObject, FlutterPlugin, FlutterStre
   private func publish() {
     guard let probe, sink != nil else { return }
     var regions: [[String: Any]] = []
+    var verticalBarEdge = "none"
     if #available(iOS 27.1, *) {
       regions += payloads(
         probe.reservedRegions(kind: .division, options: .includeInactive),
@@ -101,10 +103,14 @@ public final class ArrangementLayoutPlugin: NSObject, FlutterPlugin, FlutterStre
         probe.reservedRegions(kind: .occlusion, options: .includeInactive),
         kind: "occlusion"
       )
+      verticalBarEdge = Self.verticalBarEdgeName(of: probe)
     }
     let payload: [String: Any] = [
       "hinge": latestHinge ?? NSNull(),
       "regions": regions,
+      "safeArea": Self.safeAreaPayload(of: probe),
+      "verticalBarEdge": verticalBarEdge,
+      "statusBar": Self.statusBarPayload(in: probe),
     ]
     let boxed = payload as NSDictionary
     if let lastPayload, lastPayload.isEqual(boxed) {
@@ -130,6 +136,54 @@ public final class ArrangementLayoutPlugin: NSObject, FlutterPlugin, FlutterStre
         "active": region.isActive,
       ]
     }
+  }
+
+  /// leading / trailing 换成物理左右，竖排按钮才不会跟着书写方向镜像到错误的一边。
+  @available(iOS 27.1, *)
+  private static func verticalBarEdgeName(of view: UIView) -> String {
+    let rightToLeft = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
+    switch view.traitCollection.verticalBarEdge {
+    case .leading:
+      return rightToLeft ? "right" : "left"
+    case .trailing:
+      return rightToLeft ? "left" : "right"
+    case .unspecified:
+      return "none"
+    @unknown default:
+      return "none"
+    }
+  }
+
+  private static func safeAreaPayload(of view: UIView) -> [String: Double] {
+    let insets = view.safeAreaInsets
+    return [
+      "l": Double(insets.left),
+      "t": Double(insets.top),
+      "r": Double(insets.right),
+      "b": Double(insets.bottom),
+    ]
+  }
+
+  /// `statusBarFrame` 在屏幕坐标系里。转成 Flutter 视图坐标后，竖排状态栏的底边
+  /// 才能跟着灵动岛变高。隐藏或还没进 window 时上报 null。
+  private static func statusBarPayload(in view: UIView) -> Any {
+    guard let window = view.window,
+          let manager = window.windowScene?.statusBarManager
+    else { return NSNull() }
+    let frame = manager.statusBarFrame
+    guard !frame.isNull, !frame.isEmpty,
+          frame.origin.x.isFinite, frame.origin.y.isFinite,
+          frame.size.width.isFinite, frame.size.height.isFinite
+    else { return NSNull() }
+    let inWindow = window.convert(frame, from: window.screen.coordinateSpace)
+    let inView = view.convert(inWindow, from: window)
+    guard !inView.isNull, !inView.isEmpty else { return NSNull() }
+    return [
+      "l": Double(inView.minX),
+      "t": Double(inView.minY),
+      "r": Double(inView.maxX),
+      "b": Double(inView.maxY),
+    ]
   }
 
   @available(iOS 27.1, *)
@@ -191,6 +245,16 @@ private final class RegionProbeView: UIView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    publishLayout()
+  }
+
+  override func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    publishLayout()
+  }
+
+  /// 安全区变化不一定等到下一次 layout。灵动岛长高时两侧都会走到这里。
+  private func publishLayout() {
     guard !publishing else { return }
     publishing = true
     onLayout?()
